@@ -71,7 +71,7 @@ bool MiLightRadio::available()
     }
 
     uint32_t packet_id = PACKET_ID(_packet);
-    if(packet_id == _prev_packet_id) {
+    if (packet_id == _prev_packet_id) {
       _dupes_received++;
     } else {
       _prev_packet_id = packet_id;
@@ -107,4 +107,29 @@ int MiLightRadio::read(uint8_t frame[], size_t &frame_length)
   _waiting = false;
 
   return _packet[0];
+}
+
+int MiLightRadio::write(uint8_t frame[], size_t frame_length)
+{
+  if (frame_length > sizeof(_out_packet) - 1) {
+    return -1;
+  }
+
+  memcpy(_out_packet + 1, frame, frame_length);
+  _out_packet[0] = frame_length;
+
+  int retval = resend();
+  if (retval < 0) {
+    return retval;
+  }
+  return frame_length;
+}
+
+int MiLightRadio::resend()
+{
+  for (int i = 0; i < NUM_CHANNELS; i++) {
+    _pl1167.writeFIFO(_out_packet, _out_packet[0] + 1);
+    _pl1167.transmit(CHANNELS[i]);
+  }
+  return 0;
 }

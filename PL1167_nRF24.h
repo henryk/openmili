@@ -22,6 +22,8 @@ class PL1167_nRF24 : public AbstractPL1167 {
     int setTrailerLength(uint8_t trailerLength);
     int setCRC(bool crc);
     int setMaxPacketLength(uint8_t maxPacketLength);
+    int writeFIFO(const uint8_t data[], size_t data_length);
+    int transmit(uint8_t channel);
     int receive(uint8_t channel);
     int readFIFO(uint8_t data[], size_t &data_length);
 

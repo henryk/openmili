@@ -19,11 +19,13 @@ class MiLightRadio {
     bool available();
     int read(uint8_t frame[], size_t &frame_length);
     int dupesReceived();
+    int write(uint8_t frame[], size_t frame_length);
+    int resend();
   private:
     AbstractPL1167 &_pl1167;
     uint32_t _prev_packet_id;
 
-    uint8_t _packet[8];
+    uint8_t _packet[8], _out_packet[8];
     bool _waiting;
     int _dupes_received;
 };

@@ -73,6 +73,7 @@ int PL1167_nRF24::recalc_parameters()
 
   _nrf_pipe_length = nrf_address_length;
   _radio.setAddressWidth(_nrf_pipe_length);
+  _radio.openWritingPipe(_nrf_pipe);
   _radio.openReadingPipe(1, _nrf_pipe);
 
   _radio.setChannel(2 + _channel);
@@ -83,7 +84,7 @@ int PL1167_nRF24::recalc_parameters()
   _radio.setPALevel(RF24_PA_MAX);
   _radio.setDataRate(RF24_1MBPS);
   _radio.disableCRC();
-  
+
   return 0;
 }
 
@@ -164,6 +165,99 @@ int PL1167_nRF24::readFIFO(uint8_t data[], size_t &data_length)
   return _packet_length;
 }
 
+int PL1167_nRF24::writeFIFO(const uint8_t data[], size_t data_length)
+{
+  if (data_length > sizeof(_packet)) {
+    data_length = sizeof(_packet);
+  }
+  memcpy(_packet, data, data_length);
+  _packet_length = data_length;
+
+  return data_length;
+}
+
+int PL1167_nRF24::transmit(uint8_t channel)
+{
+  if (channel != _channel) {
+    _channel = channel;
+    int retval = recalc_parameters();
+    if (retval < 0) {
+      return retval;
+    }
+  }
+
+  _radio.stopListening();
+  uint8_t tmp[sizeof(_packet)];
+
+  uint8_t trailer = (_packet[0] & 1) ? 0x55 : 0xAA;  // NOTE: This is a guess, it might also be based upon the last
+  // syncword bit, or fixed
+  int outp = 0;
+
+  for (; outp < _receive_length; outp++) {
+    uint8_t outbyte = 0;
+
+    if (outp + 1 + _nrf_pipe_length < _preambleLength) {
+      outbyte = _preamble;
+    } else if (outp + 1 + _nrf_pipe_length < _preambleLength + _syncwordLength) {
+      int syncp = outp - _preambleLength + 1 + _nrf_pipe_length;
+      switch (syncp) {
+        case 0:
+          outbyte = _syncword0 & 0xFF;
+          break;
+        case 1:
+          outbyte = (_syncword0 >> 8) & 0xFF;
+          break;
+        case 2:
+          outbyte = _syncword3 & 0xFF;
+          break;
+        case 3:
+          outbyte = (_syncword3 >> 8) & 0xFF;
+          break;
+      }
+    } else if (outp + 1 + _nrf_pipe_length < _preambleLength + _syncwordLength + (_trailerLength / 8) ) {
+      outbyte = trailer;
+    } else {
+      break;
+    }
+
+    tmp[outp] = reverse_bits(outbyte);
+  }
+
+  int buffer_fill;
+  bool last_round = false;
+  uint16_t buffer = 0;
+  uint16_t crc;
+  if (_crc) {
+    crc = calc_crc(_packet, _packet_length);
+  }
+
+  buffer = trailer >> (8 - (_trailerLength % 8));
+  buffer_fill = _trailerLength % 8;
+  for (int inp = 0; inp < _packet_length + (_crc ? 2 : 0) + 1; inp++) {
+    if (inp < _packet_length) {
+      buffer |= _packet[inp] << buffer_fill;
+      buffer_fill += 8;
+    } else if (_crc && inp < _packet_length + 2) {
+      buffer |= ((crc >>  ( (inp - _packet_length) * 8)) & 0xff) << buffer_fill;
+      buffer_fill += 8;
+    } else {
+      last_round = true;
+    }
+
+    while (buffer_fill > (last_round ? 0 : 8)) {
+      if (outp >= sizeof(tmp)) {
+        return -1;
+      }
+      tmp[outp++] = reverse_bits(buffer & 0xff);
+      buffer >>= 8;
+      buffer_fill -= 8;
+    }
+  }
+
+  _radio.write(tmp, outp);
+  return 0;
+}
+
 
 int PL1167_nRF24::internal_receive()
 {
@@ -171,16 +265,16 @@ int PL1167_nRF24::internal_receive()
   int outp = 0;
 
   _radio.read(tmp, _receive_length);
-  
+
   // HACK HACK HACK: Reset radio
   open();
-  
+
   uint8_t shift_amount = _trailerLength % 8;
   uint16_t buffer = 0;
-  
+
 #ifdef DEBUG_PRINTF
   printf("Packet received: ");
-  for(int i=0; i<_receive_length; i++) {
+  for (int i = 0; i < _receive_length; i++) {
     printf("%02X", reverse_bits(tmp[i]));
   }
   printf("\n");
@@ -190,14 +284,14 @@ int PL1167_nRF24::internal_receive()
     uint8_t inbyte = reverse_bits(tmp[inp]);
     buffer = (buffer >> 8) | (inbyte << 8);
 
-    if (inp+1+_nrf_pipe_length < _preambleLength) {
+    if (inp + 1 + _nrf_pipe_length < _preambleLength) {
       if (inbyte != _preamble) {
 #ifdef DEBUG_PRINTF
         printf("Preamble fail (%i: %02X)\n", inp, inbyte);
 #endif
         return 0;
       }
-    } else if (inp+1+_nrf_pipe_length < _preambleLength + _syncwordLength) {
+    } else if (inp + 1 + _nrf_pipe_length < _preambleLength + _syncwordLength) {
       int syncp = inp - _preambleLength + 1 + _nrf_pipe_length;
       switch (syncp) {
         case 0:
@@ -229,17 +323,17 @@ int PL1167_nRF24::internal_receive()
             return 0;
           } break;
       }
-    } else if (inp+1+_nrf_pipe_length < _preambleLength + _syncwordLength + ((_trailerLength + 7) / 8) ) {
+    } else if (inp + 1 + _nrf_pipe_length < _preambleLength + _syncwordLength + ((_trailerLength + 7) / 8) ) {
 
     } else {
       tmp[outp++] = buffer >> shift_amount;
     }
   }
-  
-  
+
+
 #ifdef DEBUG_PRINTF
   printf("Packet transformed: ");
-  for(int i=0; i<outp; i++) {
+  for (int i = 0; i < outp; i++) {
     printf("%02X", tmp[i]);
   }
   printf("\n");

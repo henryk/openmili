@@ -19,8 +19,8 @@ class AbstractPL1167 {
     virtual int setTrailerLength(uint8_t trailerLength) = 0;
     virtual int setMaxPacketLength(uint8_t maxPacketLength) = 0;
     virtual int setCRC(bool crc) = 0;
-    /*	virtual int writeFIFO(const uint8_t *data, size_t data_length) = 0;
-    	virtual int transmit(uint8_t channel) = 0; */
+    virtual int writeFIFO(const uint8_t data[], size_t data_length) = 0;
+    virtual int transmit(uint8_t channel) = 0;
     virtual int receive(uint8_t channel) = 0;
     virtual int readFIFO(uint8_t data[], size_t &data_length) = 0;
 };
