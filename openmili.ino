@@ -61,6 +61,8 @@ void loop()
       
       if(brightnes < 0)
         brightnes = 0;
+      else if(brightnes > 25)
+        brightnes = 25;
       
       printf("Brightnes %d;", brightnes);
     }
