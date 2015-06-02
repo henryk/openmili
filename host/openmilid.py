@@ -18,6 +18,7 @@ STATIC_COMMAND_MAP = {
     0x4A: 0x08, # Group 3 off
     0x4B: 0x09, # Group 4 on
     0x4C: 0x0A, # Group 4 off
+    0x4D: 0x0D, # Disco mode
     0xC2: 0x11, # Set color white all
     0xC5: 0x13, # Set color white group 1
     0xC7: 0x15, # Set color white group 2
@@ -29,11 +30,49 @@ STATIC_COMMAND_MAP = {
     0xCA: 0x18, # Night mode group 3
     0xCC: 0x1A, # Night mode group 4
 }
+DISCO_CANCEL_COMMANDS = [e + 0x11 for e in range(10)] + [0x0F]
+
+class RemoteState(object):
+    def __init__(self, sender_id):
+        self.sender_id = sender_id
+        self.counter = 0
+        self.val1 = 0
+        self.val2 = 0
+        self.disco_mode = None
+    
+    def handle_message(self, serial_fd, message):
+        message = map(ord, message)
+        
+        if message[0] in STATIC_COMMAND_MAP:
+            if message[0] == 0x4D:
+                if self.disco_mode is None:
+                    self.disco_mode = 0
+                else:
+                    self.disco_mode = (self.disco_mode + 1) % 9
+            self.send_milight(serial_fd, STATIC_COMMAND_MAP[message[0]], 40)
+        elif message[0] == 0x4E:
+            self.val2 = (0x90 - (message[1] * 8) + 0x100) & 0xff
+            self.send_milight(serial_fd, 0x0e, 30)
+        elif message[0] == 0x40:
+            self.val1 = (0xC8 - message[1] + 0x100) & 0xFF
+            self.send_milight(serial_fd, 0x0f, 30)
+    
+    def send_milight(self, serial_fd, cmd, repetition=1):
+        sender_id = self.sender_id
+        if cmd in DISCO_CANCEL_COMMANDS:
+            self.disco_mode = None
+        if self.disco_mode is not None:
+            sender_id = sender_id[0] + ("%i" % self.disco_mode) + sender_id[2:]
+        self.counter = (self.counter + 1) & 0xff
+        serial_fd.write(sender_id + "%02X%02X%02X%02X " % (self.val1, self.val2, cmd, self.counter))
+        for i in range(repetition-1):
+            serial_fd.write(".")
+        serial_fd.write("\r\n")
 
 class OpenMiLiDaemon(object):
     def __init__(self, args):
         self.args = args
-        self.counter = {}
+        self.remotes = {}
     
     def start(self):
         with serial.Serial(self.args.serial, self.args.baudrate, timeout=0.1) as fd:
@@ -45,44 +84,36 @@ class OpenMiLiDaemon(object):
                 else:
                     sender_id = idport
                     port_number = FIRST_PORT + offset
-                sender_id = sender_id.upper()
+                
+                sender_id = "".join(sender_id.split()).upper()
+                if sender_id in self.remotes:
+                    remote = self.remotes[sender_id]
+                else:
+                    remote = RemoteState(sender_id)
+                    self.remotes[sender_id] = remote
                 
                 if False: # Not implemented yet
                     tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     tcpsock.bind(('', port_number))
                     tcpsock.listen(3)
-                    sockets.append( (tcpsock, sender_id) )
+                    sockets.append( (tcpsock, remote) )
                 
                 udpsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 udpsock.bind(('', port_number))
-                sockets.append( (udpsock, sender_id) )
+                sockets.append( (udpsock, remote) )
             
             while True:
-                r, _, _ = select.select( [fd] + [e for (e, i) in sockets], [], [], 60)
+                r, _, _ = select.select( [fd] + [e for (e, _) in sockets], [], [], 60)
                 
                 if fd in r:
                     print fd.read(1024)
                 
-                for sock, sender_id in sockets:
+                for sock, remote in sockets:
                     if sock in r:
                         message = sock.recv(1024)
                         
-                        self.handle_message(fd, sender_id, message)
+                        remote.handle_message(fd, message)
     
-    def handle_message(self, serial_fd, sender_id, message):
-        counter = self.counter.get(sender_id, 0)
-        self.counter[sender_id] = (counter + 1) & 0xff
-        
-        message = map(ord, message)
-        
-        if message[0] in STATIC_COMMAND_MAP:
-            self.send_milight(serial_fd, sender_id, 0, 0, STATIC_COMMAND_MAP[message[0]], counter, 40)
-    
-    def send_milight(self, serial_fd, sender_id, val1, val2, cmd, counter, repetition=1):
-        serial_fd.write(sender_id + "%02X%02X%02X%02X " % (val1, val2, cmd, counter))
-        for i in range(repetition-1):
-            serial_fd.write(".")
-        serial_fd.write("\r\n")
     
 
 if __name__ == "__main__":
