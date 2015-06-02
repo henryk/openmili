@@ -38,6 +38,8 @@ void loop()
     
     printf("\n");
     
+    printf("ID %02X%02X;", packet[1], packet[2]);
+    
     if(packet[4] & 0b00000111) 
       printf("Group %d;", packet[4] & 0b00000111);
     else
