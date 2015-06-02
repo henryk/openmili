@@ -149,7 +149,11 @@ int PL1167_nRF24::receive(uint8_t channel)
     internal_receive();
   }
 
-  return _packet_length;
+  if(_received) {
+    return _packet_length;
+  } else {
+    return 0;
+  }
 }
 
 int PL1167_nRF24::readFIFO(uint8_t data[], size_t &data_length)
@@ -172,6 +176,7 @@ int PL1167_nRF24::writeFIFO(const uint8_t data[], size_t data_length)
   }
   memcpy(_packet, data, data_length);
   _packet_length = data_length;
+  _received = false;
 
   return data_length;
 }
@@ -353,6 +358,7 @@ int PL1167_nRF24::internal_receive()
 
   memcpy(_packet, tmp, outp);
   _packet_length = outp;
+  _received = true;
   return outp;
 }
 

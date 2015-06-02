@@ -46,6 +46,7 @@ class PL1167_nRF24 : public AbstractPL1167 {
     uint8_t _receive_length = 0;
     uint8_t _preamble = 0;
     uint8_t _packet[32];
+    bool _received = false;
 
     int recalc_parameters();
     int internal_receive();
