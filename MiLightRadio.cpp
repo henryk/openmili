@@ -65,7 +65,7 @@ bool MiLightRadio::available()
     if (_pl1167.readFIFO(_packet, packet_length) < 0) {
       return false;
     }
-    if (packet_length == 0 || packet_length != _packet[0] + 1) {
+    if (packet_length == 0 || packet_length != _packet[0] + 1U) {
       return false;
     }
 
@@ -126,7 +126,7 @@ int MiLightRadio::write(uint8_t frame[], size_t frame_length)
 
 int MiLightRadio::resend()
 {
-  for (int i = 0; i < NUM_CHANNELS; i++) {
+  for (size_t i = 0; i < NUM_CHANNELS; i++) {
     _pl1167.writeFIFO(_out_packet, _out_packet[0] + 1);
     _pl1167.transmit(CHANNELS[i]);
   }
