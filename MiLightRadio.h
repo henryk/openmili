@@ -5,7 +5,13 @@
  *      Author: henryk
  */
 
+#ifdef ARDUINO
 #include "Arduino.h"
+#else
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#endif
 
 #include "AbstractPL1167.h"
 

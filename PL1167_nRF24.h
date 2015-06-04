@@ -5,7 +5,9 @@
  *      Author: henryk
  */
 
+#ifdef ARDUINO
 #include "Arduino.h"
+#endif
 
 #include "AbstractPL1167.h"
 #include "RF24.h"

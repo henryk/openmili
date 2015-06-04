@@ -5,7 +5,6 @@
  *      Author: henryk
  */
 
-#include "Arduino.h"
 #include "PL1167_nRF24.h"
 
 static uint16_t calc_crc(uint8_t *data, size_t data_length);
