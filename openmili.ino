@@ -98,6 +98,7 @@ void loop()
           case ' ':
           case '\n':
           case '\r':
+          case '.':
             if (state == COMPLETE) {
               mlr.write(outgoingPacket, sizeof(outgoingPacket));
             }
@@ -106,9 +107,10 @@ void loop()
               state = IDLE;
             }
             break;
-          case '.':
-            mlr.resend();
-            delay(1);
+            if (inChar == '.') {
+              mlr.resend();
+              delay(1);
+            }
             break;
           case 'x':
             Serial.println("# Escaped to extended commands: r - Toggle receiver; Press enter to return to normal mode.");
