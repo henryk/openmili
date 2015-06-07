@@ -106,7 +106,6 @@ void loop()
               outgoingPacketPos = 0;
               state = IDLE;
             }
-            break;
             if (inChar == '.') {
               mlr.resend();
               delay(1);
