@@ -31,7 +31,7 @@ class MiLightRadio {
     AbstractPL1167 &_pl1167;
     uint32_t _prev_packet_id;
 
-    uint8_t _packet[8], _out_packet[8];
+    uint8_t _packet[10], _out_packet[10];
     bool _waiting;
     int _dupes_received;
 };
